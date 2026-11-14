@@ -44,6 +44,17 @@
   setInterval(tick, 250);
   document.addEventListener("visibilitychange", tick);
 
+  // Click anywhere to toggle full screen
+  document.addEventListener("click", function () {
+    try {
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen();
+      }
+    } catch (e) {}
+  });
+
   // Keep the screen awake while this tab is visible
   var lock = null;
   async function keepAwake() {
