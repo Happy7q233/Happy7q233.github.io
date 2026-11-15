@@ -25,7 +25,7 @@
   #clock small { display: inline-block; vertical-align: middle; font-size: 0.3em; line-height: 1.15; margin-left: 0.25em; color: var(--dim); letter-spacing: 0; text-align: left; }
   #clock small span { display: block; }
   #hms, #ap { cursor: pointer; }
-  #ap:hover, #ap:focus-visible { color: var(--fg); outline: none; }
+  html:not(.keys) #ap:hover { color: var(--fg); }
   #wrap { position: relative; }
   #meta { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); white-space: nowrap;
     font-size: clamp(1.25rem, 4vw, 3rem); color: var(--dim); letter-spacing: 0.05em; margin-bottom: 0; }
@@ -42,7 +42,7 @@
 <body>
   <div id="wrap">
     <div id="meta"></div>
-    <div id="clock"><span id="hms"></span><small><span id="ap" role="button" tabindex="0" title="Switch between 12 and 24 hour"></span><span id="tzn"></span></small></div>
+    <div id="clock"><span id="hms"></span><small><span id="ap" role="button" title="Switch between 12 and 24 hour"></span><span id="tzn"></span></small></div>
   </div>
   <div id="stopwatch">0</div>
   <a id="gh" tabindex="-1" href="https://github.com/Happy7q233/Happy7q233.github.io" target="_blank" rel="noopener" aria-label="GitHub repository">
@@ -105,10 +105,17 @@
     try { localStorage.setItem("clock24", use24 ? "1" : "0"); } catch (e) {}
     tick();
   }
-  var ap = document.getElementById("ap");
-  ap.addEventListener("click", toggle24);
-  ap.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle24(); }
+  document.getElementById("ap").addEventListener("click", toggle24);
+
+  // Press Tab to switch between 12 and 24 hour time
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Tab" || e.ctrlKey || e.metaKey || e.altKey) return;
+    e.preventDefault();
+    document.documentElement.classList.add("keys");    // drop the hover highlight until the mouse moves
+    toggle24();
+  });
+  document.addEventListener("mousemove", function () {
+    document.documentElement.classList.remove("keys");
   });
 
   // Click the main clock to toggle full screen (AM/PM and time zone excluded)
