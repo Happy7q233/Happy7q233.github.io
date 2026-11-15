@@ -2,4 +2,5 @@
 
 A small collection of simple, useful tools I find myself needing.
 
-- [Clock](https://happy7q233.github.io/clock): local time with a stopwatch, keeps the screen awake
+- [Time](https://happy7q233.github.io/time): local time with a stopwatch, keeps the screen awake.
+- [Exam](https://happy7q233.github.io/exam): exam timer with reading time included, warning beeps when 1hr, 30min, 5min remains.
