@@ -104,7 +104,7 @@
       sub = ":" + pad(secs % 60);
       if (warnText && t < warnUntil) { hint = warnText; warn = true; }
     }
-    if (state === "paused") { hint = "Paused \u00b7 Enter to resume"; warn = false; }
+    if (state === "paused") { hint = "Paused"; warn = false; }
 
     elMain.textContent = main;
     elSub.textContent = sub;
