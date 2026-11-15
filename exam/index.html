@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exam</title>
+<link rel="icon" href="https://files.happy7q233.net/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:wght@200;300;400&display=swap">
+<style>
+  :root { --bg: #f5f5f3; --fg: #161616; --dim: #8a8a86; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111111; --fg: #ececea; --dim: #777773; }
+  }
+  html, body { height: 100%; margin: 0; }
+  body {
+    -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+    background: var(--bg); color: var(--fg);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Spectral", Georgia, "Times New Roman", serif;
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+  html.idle, html.idle * { cursor: none !important; }
+  #stage { position: relative; }
+  #clock { font-size: clamp(3rem, 19vw, 16rem); font-weight: 200; letter-spacing: -0.02em; line-height: 1; white-space: nowrap; }
+  /* seconds / reading suffix floats beside the number so the number stays dead-centre */
+  #clock small { position: absolute; left: 100%; bottom: 0.6em; font-size: 0.3em; margin-left: 0.2em; color: var(--dim); letter-spacing: 0; }
+  #hint {
+    position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+    width: 90vw; margin-top: 1rem; min-height: 1.2em;
+    font-size: clamp(0.8rem, 2vw, 1.1rem); color: var(--dim);
+    text-transform: uppercase; letter-spacing: 0.08em; text-align: center;
+    opacity: 0; transition: opacity 0.6s ease;
+  }
+  #hint.show { opacity: 1; }
+  #hint.warn { color: var(--fg); }
+  #gh { position: fixed; bottom: 1.5rem; right: 1.5rem; width: 1.75rem; height: 1.75rem; color: var(--dim); }
+  #gh:hover, #gh:focus-visible { color: var(--fg); }
+  #gh svg { display: block; width: 100%; height: 100%; fill: currentColor; }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <div id="clock"><span id="main"></span><small id="sub"></small></div>
+    <div id="hint"></div>
+  </div>
+  <a id="gh" href="https://github.com/Happy7q233/Happy7q233.github.io" target="_blank" rel="noopener" aria-label="GitHub repository">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+  </a>
+<script>
+  var READING_MS = 5 * 60 * 1000;
+  var MARKS = [
+    { ms: 3600000, text: "1 hour remaining", freq: 660, done: false },
+    { ms: 1800000, text: "30 minutes remaining", freq: 660, done: false },
+    { ms: 300000, text: "5 minutes remaining", freq: 880, done: false }
+  ];
+
+  var state = "setup";      // setup | running | paused | done
+  var phase = "reading";    // reading | exam (while running or paused)
+  var digits = "";
+  var examMs = 0;
+  var deadline = 0;         // end of the current phase
+  var pausedAt = 0;
+  var fsEntered = false;
+  var warnText = "", warnUntil = 0;
+  var audio = null, lock = null;
+
+  var elMain = document.getElementById("main");
+  var elSub = document.getElementById("sub");
+  var elHint = document.getElementById("hint");
+  var pad = function (n) { return String(n).padStart(2, "0"); };
+
+  // ---------- display ----------
+  function fmtLength(mins) {          // exam length, no leading zeros
+    return mins >= 60 ? Math.floor(mins / 60) + ":" + pad(mins % 60) : String(mins);
+  }
+
+  function render() {
+    var t = state === "paused" ? pausedAt : Date.now();
+    var main = "", sub = "", hint = "", warn = false, secs;
+
+    if (state === "setup") {
+      main = digits || "0";
+      hint = "Enter exam time in minutes";
+    } else if (state === "done") {
+      main = "0"; sub = ":00";
+      hint = "Time\u2019s up";
+    } else if (phase === "reading") {
+      secs = Math.max(0, Math.ceil((deadline - t) / 1000));
+      main = fmtLength(examMs / 60000);
+      sub = "+" + Math.floor(secs / 60) + ":" + pad(secs % 60);
+      hint = "Reading Time";
+    } else {
+      secs = Math.max(0, Math.ceil((deadline - t) / 1000));
+      var h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60);
+      main = h >= 1 ? h + ":" + pad(m) : String(m);
+      sub = ":" + pad(secs % 60);
+      if (warnText && t < warnUntil) { hint = warnText; warn = true; }
+    }
+    if (state === "paused") { hint = "Paused \u00b7 Enter to resume"; warn = false; }
+
+    elMain.textContent = main;
+    elSub.textContent = sub;
+    if (hint) {                      // fade in with the new text
+      elHint.textContent = hint;
+      elHint.className = "show" + (warn ? " warn" : "");
+    } else {                         // fade out, keeping the old text meanwhile
+      elHint.classList.remove("show");
+    }
+  }
+
+  // ---------- sound ----------
+  function beeps(freq, count, len, gap) {
+    if (!audio) return;
+    try {
+      if (audio.state === "suspended") audio.resume();
+      var t0 = audio.currentTime + 0.05;
+      for (var i = 0; i < count; i++) {
+        var s = t0 + i * (len + gap);
+        var o = audio.createOscillator(), g = audio.createGain();
+        o.type = "sine"; o.frequency.value = freq;
+        g.gain.setValueAtTime(0.0001, s);
+        g.gain.exponentialRampToValueAtTime(0.4, s + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, s + len);
+        o.connect(g); g.connect(audio.destination);
+        o.start(s); o.stop(s + len + 0.02);
+      }
+    } catch (e) {}
+  }
+
+  // ---------- full screen / wake lock ----------
+  function enterFullscreen() {
+    try {
+      var el = document.documentElement;
+      if (el.requestFullscreen) el.requestFullscreen().catch(function () {});
+    } catch (e) {}
+  }
+  function lockOn() {
+    try {
+      if (!lock && "wakeLock" in navigator && document.visibilityState === "visible") {
+        navigator.wakeLock.request("screen").then(function (l) {
+          lock = l;
+          l.addEventListener("release", function () { lock = null; });
+        }).catch(function () {});
+      }
+    } catch (e) {}
+  }
+  function lockOff() {
+    try { if (lock) { lock.release(); lock = null; } } catch (e) {}
+  }
+
+  // ---------- state changes ----------
+  function start() {
+    var mins = parseInt(digits || "0", 10);
+    if (!mins) return;
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      audio = new AC();
+      if (audio.state === "suspended") audio.resume();
+    } catch (e) { audio = null; }
+    examMs = mins * 60000;
+    enterFullscreen();
+    state = "running"; phase = "reading";
+    deadline = Date.now() + READING_MS;
+    lockOn();
+    render();
+  }
+
+  function skipReading() {
+    phase = "exam";
+    deadline = Date.now() + examMs;
+    render();
+  }
+
+  function pause() {
+    state = "paused";
+    pausedAt = Date.now();
+    lockOff();
+    render();
+  }
+
+  function resume() {
+    var shift = Date.now() - pausedAt;
+    deadline += shift;
+    warnUntil += shift;
+    state = "running";
+    enterFullscreen();
+    lockOn();
+    render();
+  }
+
+  function finish() {
+    state = "done";
+    lockOff();
+    beeps(880, 3, 0.3, 0.15);
+    render();
+  }
+
+  function tick() {
+    if (state !== "running") return;
+    var now = Date.now();
+    if (phase === "reading" && now >= deadline) {
+      phase = "exam";
+      deadline += examMs;            // exam starts exactly when reading ends
+    }
+    if (phase === "exam") {
+      var remaining = deadline - now;
+      if (remaining <= 0) { finish(); return; }
+      var due = null;
+      for (var i = 0; i < MARKS.length; i++) {
+        var k = MARKS[i];
+        if (!k.done && examMs > k.ms && remaining <= k.ms) { k.done = true; due = k; }
+      }
+      if (due) {                      // if several were missed, announce only the most urgent
+        beeps(due.freq, 3, 0.2, 0.15);
+        warnText = due.text;
+        warnUntil = now + 10000;
+      }
+    }
+    render();
+  }
+
+  // ---------- input ----------
+  document.addEventListener("keydown", function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (state === "setup") {
+      if (/^[0-9]$/.test(e.key)) {
+        if (digits.length < 4) digits += e.key;
+        render();
+      } else if (e.key === "Backspace") {
+        digits = digits.slice(0, -1);
+        render();
+      } else if (e.key === "Enter" && !e.repeat) {
+        start();
+      }
+    } else if (e.key === "Enter" && !e.repeat) {
+      if (state === "running" && phase === "reading") skipReading();
+      else if (state === "paused") resume();
+    }
+  });
+
+  // Leaving full screen while running pauses (only once full screen was really entered)
+  var idleTimer;
+  function cursorWake() {
+    document.documentElement.classList.remove("idle");
+    clearTimeout(idleTimer);
+    if (document.fullscreenElement) {
+      idleTimer = setTimeout(function () {
+        document.documentElement.classList.add("idle");
+      }, 2000);
+    }
+  }
+  document.addEventListener("fullscreenchange", function () {
+    if (document.fullscreenElement) fsEntered = true;
+    else if (fsEntered && state === "running") pause();
+    cursorWake();
+  });
+  document.addEventListener("mousemove", cursorWake);
+
+  window.addEventListener("beforeunload", function (e) {
+    if (state === "running" || state === "paused") { e.preventDefault(); e.returnValue = ""; }
+  });
+
+  document.addEventListener("visibilitychange", function () {
+    tick();
+    if (state === "running") lockOn();
+  });
+
+  setInterval(tick, 250);
+  render();
+</script>
+</body>
+</html>
