@@ -82,8 +82,9 @@
   var pad = function (n) { return String(n).padStart(2, "0"); };
 
   // ---------- display ----------
-  function fmtLength(mins) {          // exam length, no leading zeros
-    return mins >= 60 ? Math.floor(mins / 60) + ":" + pad(mins % 60) : String(mins);
+  function fmtExam(secs) {            // exam number, no leading zeros: h:mm from 1 hour, else minutes
+    var h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60);
+    return h >= 1 ? h + ":" + pad(m) : String(m);
   }
 
   function fmtClock(secs) {           // timer display, no leading zero: 1:23:45, 12:45, 45
@@ -105,14 +106,14 @@
     var main = "", sub = "", hint = "", warn = false, secs;
 
     if (state === "setup") {
-      main = digits ? (mode === "timer" ? fmtTyped(digits) : digits) : "0";
+      main = digits ? fmtTyped(digits) : "0";
       hint = "Exam";             // the toggle: grey = off (timer), bright = on (exam)
     } else if (state === "done") {
       main = "0"; sub = mode === "exam" ? ":00" : "";
       hint = "Time\u2019s up";
     } else if (phase === "reading") {
       secs = Math.max(0, Math.ceil((deadline - t) / 1000));
-      main = fmtLength(examMs / 60000);
+      main = fmtExam(Math.ceil(examMs / 1000));
       sub = "+" + Math.floor(secs / 60) + ":" + pad(secs % 60);
       hint = "Reading Time";
     } else {
@@ -120,8 +121,7 @@
       if (mode === "timer") {
         main = fmtClock(secs);       // seconds shown normally, no suffix
       } else {
-        var h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60);
-        main = h >= 1 ? h + ":" + pad(m) : String(m);
+        main = fmtExam(secs);
         sub = ":" + pad(secs % 60);
         if (warnText && t < warnUntil) { hint = warnText; warn = true; }
       }
@@ -181,7 +181,7 @@
 
   // ---------- state changes ----------
   function start() {
-    var total = mode === "timer" ? parseHms(digits) * 1000 : parseInt(digits || "0", 10) * 60000;
+    var total = parseHms(digits) * 1000;
     if (!total) return;
     try {
       var AC = window.AudioContext || window.webkitAudioContext;
@@ -262,8 +262,7 @@
   // ---------- mode toggle (setup only) ----------
   function toggleMode() {
     if (state !== "setup") return;
-    mode = mode === "exam" ? "timer" : "exam";
-    digits = "";                     // typed digits mean different things in each mode
+    mode = mode === "exam" ? "timer" : "exam";   // typed time is kept
     render();
   }
   elHintText.addEventListener("click", toggleMode);
@@ -276,9 +275,8 @@
         e.preventDefault();
         toggleMode();
       } else if (/^[0-9]$/.test(e.key)) {
-        var max = mode === "timer" ? 6 : 4;
-        // in timer mode a leading 0 adds nothing, so it is skipped
-        if (digits.length < max && !(mode === "timer" && digits === "" && e.key === "0")) digits += e.key;
+        // up to 6 digits (h:mm:ss); a leading 0 adds nothing, so it is skipped
+        if (digits.length < 6 && !(digits === "" && e.key === "0")) digits += e.key;
         render();
       } else if (e.key === "Backspace") {
         digits = digits.slice(0, -1);
