@@ -207,7 +207,9 @@
     if (state !== "running") return;
     var now = Date.now();
     if (phase === "reading" && now >= deadline) {
-      beeps(660, 2, 0.2, 0.15); // Beep when reading time ends naturally
+      beeps(660, 3, 0.2, 0.15);     // 3 beeps when reading time naturally expires
+      warnText = "Reading Time Over";
+      warnUntil = now + 10000;      // Display warning text for 10 seconds
       phase = "exam";
       deadline += examMs;          // exam starts exactly when reading ends
     }
