@@ -108,10 +108,10 @@
 
     elMain.textContent = main;
     elSub.textContent = sub;
-    if (hint) {                      // fade in with the new text
+    if (hint) {                     // fade in with the new text
       elHint.textContent = hint;
       elHint.className = "show" + (warn ? " warn" : "");
-    } else {                         // fade out, keeping the old text meanwhile
+    } else {                        // fade out, keeping the old text meanwhile
       elHint.classList.remove("show");
     }
   }
@@ -207,8 +207,9 @@
     if (state !== "running") return;
     var now = Date.now();
     if (phase === "reading" && now >= deadline) {
+      beeps(660, 2, 0.2, 0.15); // Beep when reading time ends naturally
       phase = "exam";
-      deadline += examMs;            // exam starts exactly when reading ends
+      deadline += examMs;          // exam starts exactly when reading ends
     }
     if (phase === "exam") {
       var remaining = deadline - now;
@@ -218,7 +219,7 @@
         var k = MARKS[i];
         if (!k.done && examMs > k.ms && remaining <= k.ms) { k.done = true; due = k; }
       }
-      if (due) {                      // if several were missed, announce only the most urgent
+      if (due) {                  // if several were missed, announce only the most urgent
         beeps(due.freq, 3, 0.2, 0.15);
         warnText = due.text;
         warnUntil = now + 10000;
