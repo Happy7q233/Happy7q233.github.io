@@ -107,12 +107,27 @@
   }
   document.getElementById("ap").addEventListener("click", toggle24);
 
-  // Press Tab to switch between 12 and 24 hour time
+  // Enter or clicking the main clock toggles full screen
+  function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen();
+      }
+    } catch (e) {}
+  }
+
   document.addEventListener("keydown", function (e) {
-    if (e.key !== "Tab" || e.ctrlKey || e.metaKey || e.altKey) return;
-    e.preventDefault();
-    document.documentElement.classList.add("keys");    // drop the hover highlight until the mouse moves
-    toggle24();
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === "Tab") {                              // Tab switches between 12 and 24 hour time
+      e.preventDefault();
+      document.documentElement.classList.add("keys");    // drop the hover highlight until the mouse moves
+      toggle24();
+    } else if (e.key === "Enter" && !e.repeat) {         // Enter enters / exits full screen
+      e.preventDefault();
+      toggleFullscreen();
+    }
   });
   document.addEventListener("mousemove", function () {
     document.documentElement.classList.remove("keys");
@@ -121,13 +136,7 @@
   // Click the main clock to toggle full screen (AM/PM and time zone excluded)
   document.getElementById("clock").addEventListener("click", function (e) {
     if (e.target.closest && e.target.closest("small")) return;
-    try {
-      if (document.fullscreenElement) {
-        document.exitFullscreen();
-      } else if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen();
-      }
-    } catch (e) {}
+    toggleFullscreen();
   });
 
   // In full screen, hide the cursor after 2 seconds without movement
